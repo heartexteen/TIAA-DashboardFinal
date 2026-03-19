@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  output: "export",
+  basePath: "/TIAA-DashboardFinal",
+  assetPrefix: "/TIAA-DashboardFinal",
   images: {
-    unoptimized: true,
+    unoptimized: true, // required for static export
   },
-}
+};
 
-export default nextConfig
+export default nextConfig;
