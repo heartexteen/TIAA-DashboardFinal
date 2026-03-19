@@ -71,12 +71,14 @@ function createBedrockClient() {
   return new BedrockRuntimeClient({ region })
 }
 
-function toBedrockMessages(messages: ChatMessage[]) {
-  return messages.map((m) => ({
-    role: m.role,
-    content: [{ text: m.content }],
-  }))
-}
+import { ConversationRole } from "@aws-sdk/client-bedrock-runtime";
+
+const toBedrockMessages = (conversation: any[]) => {
+  return conversation.map((msg) => ({
+    role: msg.role as ConversationRole,
+    content: [{ text: msg.content }],
+  }));
+};
 
 async function readConverseText(output: unknown): Promise<string> {
   const out = output as any
