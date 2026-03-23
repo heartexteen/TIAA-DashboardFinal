@@ -438,7 +438,7 @@ export default function EstateDashboard() {
                         <Badge
                           variant="secondary"
                           className={
-                            asset.status === "complete"
+                            (asset.status as string) === "complete"
                               ? "bg-green-100 text-green-700"
                               : asset.status === "action_required"
                                 ? "bg-red-100 text-red-700"
