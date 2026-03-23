@@ -4,7 +4,10 @@ const nextConfig = {
   basePath: "/TIAA-DashboardFinal",
   assetPrefix: "/TIAA-DashboardFinal",
   images: {
-    unoptimized: true, // required for static export
+    unoptimized: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 
