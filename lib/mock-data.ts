@@ -1,5 +1,5 @@
 // Mock data for TIAA Wealth Advisor CRM Dashboard
-// Based on Carina Voss client documents
+// Based on Carina Voss client documents..
 
 export interface Client {
   id: string
