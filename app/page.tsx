@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   AlertTriangle,
   TrendingUp,
@@ -11,6 +12,7 @@ import {
   DollarSign,
   User,
   Building,
+  RefreshCcw,
 } from "lucide-react"
 import {
   PieChart as RechartsPieChart,
@@ -34,8 +36,88 @@ import Link from "next/link"
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
 
+type DailySummarySections = {
+  asOf?: string
+  globalEvents: string[]
+  portfolioImpact: string[]
+  riskGuidance: string[]
+  warnings: string[]
+  sources: Array<{ title: string; url: string }>
+  raw: string
+}
+
+function parseDailySummarySections(text: string): DailySummarySections {
+  const sections: DailySummarySections = {
+    asOf: undefined,
+    globalEvents: [],
+    portfolioImpact: [],
+    riskGuidance: [],
+    warnings: [],
+    sources: [],
+    raw: text,
+  }
+
+  const lines = text
+    .split(/\r?\n/g)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+
+  type SectionKey = "global" | "impact" | "guidance" | "warnings" | "sources" | null
+  let current: SectionKey = null
+
+  for (const line of lines) {
+    const upper = line.toUpperCase()
+    if (upper.startsWith("AS_OF:")) {
+      const value = line.slice(6).trim()
+      sections.asOf = value || undefined
+      continue
+    }
+    if (upper === "GLOBAL:" || upper.startsWith("GLOBAL:")) {
+      current = "global"
+      continue
+    }
+    if (upper === "IMPACT:" || upper.startsWith("IMPACT:")) {
+      current = "impact"
+      continue
+    }
+    if (upper === "GUIDANCE:" || upper.startsWith("GUIDANCE:")) {
+      current = "guidance"
+      continue
+    }
+    if (upper === "WARNINGS:" || upper.startsWith("WARNINGS:")) {
+      current = "warnings"
+      continue
+    }
+    if (upper === "SOURCES:" || upper.startsWith("SOURCES:")) {
+      current = "sources"
+      continue
+    }
+
+    const bulletMatch = line.match(/^[-•]\s+(.*)$/)
+    if (!bulletMatch) continue
+    const bullet = bulletMatch[1].trim()
+    if (!bullet) continue
+
+    if (current === "global") sections.globalEvents.push(bullet)
+    else if (current === "impact") sections.portfolioImpact.push(bullet)
+    else if (current === "guidance") sections.riskGuidance.push(bullet)
+    else if (current === "warnings") sections.warnings.push(bullet)
+    else if (current === "sources") {
+      if (/^none$/i.test(bullet)) continue
+      const urlMatch = bullet.match(/https?:\/\/\S+/)
+      const url = urlMatch?.[0]
+      if (!url) continue
+      const title = bullet.replace(url, "").replace(/[—-]\s*$/, "").trim() || url
+      sections.sources.push({ title, url })
+    }
+  }
+
+  return sections
+}
+
 export default function ClientOverviewDashboard() {
   const {
+    selectedClientId,
     currentClient,
     ipsData,
     rtqData,
@@ -74,11 +156,76 @@ export default function ClientOverviewDashboard() {
   const highPriorityAlerts = currentClient.alerts.filter((a) => a.priority === "high")
   const mismatchCount = profileComparison.filter((p) => p.status === "mismatch").length
 
+  const [dailySummary, setDailySummary] = useState<DailySummarySections | null>(null)
+  const [dailySummaryLoading, setDailySummaryLoading] = useState(false)
+  const [dailySummaryError, setDailySummaryError] = useState<string | null>(null)
+  const [refreshNonce, setRefreshNonce] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const timeoutMs = 45_000
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+
+    async function run() {
+      setDailySummaryLoading(true)
+      setDailySummaryError(null)
+      try {
+        const res = await fetch("/api/daily-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientContext: {
+              client: currentClient,
+              ipsData,
+              rtqData,
+              profileComparison,
+            },
+          }),
+          signal: controller.signal,
+        })
+
+        if (!res.ok) {
+          const contentType = res.headers.get("content-type") || ""
+          if (contentType.includes("application/json")) {
+            const json = await res.json()
+            throw new Error(json?.error || `Failed to load daily summary (${res.status}).`)
+          }
+          const text = await res.text()
+          throw new Error(text || `Failed to load daily summary (${res.status}).`)
+        }
+
+        const text = await res.text()
+        setDailySummary(parseDailySummarySections(text))
+      } catch (err: any) {
+        if (controller.signal.aborted) {
+          setDailySummaryLoading(false)
+          return
+        }
+        setDailySummary(null)
+        setDailySummaryError(err?.message || String(err))
+      } finally {
+        setDailySummaryLoading(false)
+      }
+    }
+
+    run()
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [selectedClientId, refreshNonce])
+
   // Format next meeting date
   const formatNextMeeting = (dateStr: string) => {
     const date = new Date(dateStr)
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
   }
+
+  const asOfLabel = (() => {
+    if (!dailySummary?.asOf) return "Latest headlines"
+    const d = new Date(dailySummary.asOf)
+    return Number.isNaN(d.valueOf()) ? `As of ${dailySummary.asOf}` : `As of ${d.toLocaleString()}`
+  })()
 
   return (
     <AdvisorLayout>
@@ -103,34 +250,143 @@ export default function ClientOverviewDashboard() {
           </div>
         </div>
 
-        {/* Alert Banner */}
-        {highPriorityAlerts.length > 0 && (
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-destructive" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground">
-                    {highPriorityAlerts.length} High Priority Alert{highPriorityAlerts.length > 1 ? "s" : ""} Detected
-                  </h3>
-                  <div className="mt-2 space-y-1">
-                    {highPriorityAlerts.map((alert) => (
-                      <p key={alert.id} className="text-sm text-muted-foreground flex items-center gap-2">
-                        <AlertCircle className="w-3 h-3 text-destructive" />
-                        {alert.description}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10">
-                  Review All
-                </Button>
+        {/* AI Daily Summary Banner */}
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-primary" />
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div className="flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-foreground">AI Daily Summary</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {asOfLabel}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setRefreshNonce((n) => n + 1)}
+                  >
+                    <RefreshCcw className="w-4 h-4" />
+                    Refresh
+                  </Button>
+                </div>
+
+                {dailySummaryLoading && (
+                  <p className="text-sm text-muted-foreground mt-3">Generating summary…</p>
+                )}
+
+                {!dailySummaryLoading && dailySummaryError && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      Couldn&apos;t load the daily summary: {dailySummaryError}
+                    </p>
+                    {highPriorityAlerts.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {highPriorityAlerts.map((alert) => (
+                          <p key={alert.id} className="text-sm text-muted-foreground flex items-center gap-2">
+                            <AlertCircle className="w-3 h-3 text-destructive" />
+                            {alert.description}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!dailySummaryLoading && !dailySummaryError && dailySummary && (
+                  <>
+                    {dailySummary.globalEvents.length +
+                      dailySummary.portfolioImpact.length +
+                      dailySummary.riskGuidance.length +
+                      dailySummary.warnings.length +
+                      dailySummary.sources.length ===
+                    0 ? (
+                      <pre className="mt-3 text-sm text-muted-foreground whitespace-pre-wrap">
+                        {dailySummary.raw}
+                      </pre>
+                    ) : (
+                      <div className="mt-3 grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">Global events</p>
+                      <ul className="mt-2 space-y-1">
+                        {dailySummary.globalEvents?.slice(0, 5).map((t, idx) => (
+                          <li key={`ge-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
+                            <AlertCircle className="w-3 h-3 mt-1 text-primary" />
+                            <span>{t}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-foreground">Portfolio impact</p>
+                      <ul className="mt-2 space-y-1">
+                        {dailySummary.portfolioImpact?.slice(0, 5).map((t, idx) => (
+                          <li key={`pi-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
+                            <AlertCircle className="w-3 h-3 mt-1 text-primary" />
+                            <span>{t}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-foreground">Risk guidance</p>
+                      <ul className="mt-2 space-y-1">
+                        {dailySummary.riskGuidance?.slice(0, 5).map((t, idx) => (
+                          <li key={`rg-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
+                            <CheckCircle2 className="w-3 h-3 mt-1 text-green-600" />
+                            <span>{t}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    {Array.isArray(dailySummary.warnings) &&
+                      dailySummary.warnings.filter((w) => !/^none$/i.test(w.trim())).length > 0 && (
+                      <div className="col-span-3 mt-2">
+                        <p className="text-xs font-medium text-foreground">Warnings</p>
+                        <ul className="mt-2 space-y-1">
+                          {dailySummary.warnings
+                            .filter((w) => !/^none$/i.test(w.trim()))
+                            .slice(0, 3)
+                            .map((t, idx) => (
+                            <li key={`w-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
+                              <AlertTriangle className="w-3 h-3 mt-1 text-amber-600" />
+                              <span>{t}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {Array.isArray(dailySummary.sources) && dailySummary.sources.length > 0 && (
+                      <div className="col-span-3 mt-2">
+                        <p className="text-xs font-medium text-foreground">Sources</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {dailySummary.sources.slice(0, 6).map((s, idx) => (
+                            <a
+                              key={`src-${idx}`}
+                              href={s.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-primary hover:underline"
+                            >
+                              {s.title || s.url}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Key Metrics */}
         <div className="grid grid-cols-4 gap-6">
