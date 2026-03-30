@@ -27,7 +27,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { clients, type Document } from "@/lib/mock-data"
+import { useClient } from "@/lib/client-context"
+import type { Document } from "@/lib/domain/types"
 import {
   FileText,
   Upload,
@@ -43,14 +44,14 @@ import {
 } from "lucide-react"
 
 export default function DocumentsPage() {
-  const [selectedClient] = useState(clients[0])
+  const { currentClient } = useClient()
   const [searchQuery, setSearchQuery] = useState("")
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<Document[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
   // Combine existing documents with uploaded ones
-  const allDocuments = [...selectedClient.documents, ...uploadedFiles]
+  const allDocuments = [...(currentClient.documents || []), ...uploadedFiles]
 
   // Filter documents based on search
   const filteredDocuments = allDocuments.filter((doc) =>
@@ -170,7 +171,7 @@ export default function DocumentsPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Documents</h1>
             <p className="text-muted-foreground">
-              Manage documents for {selectedClient.name}
+              Manage documents for {currentClient.name}
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -48,8 +48,11 @@ import Link from "next/link"
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
 
 export default function RTQDashboard() {
-  const { rtqData, ipsData, profileComparison, currentClient } = useClient()
+  const { rtqData, ipsData, currentClient } = useClient()
   const { client, financialProfile, investmentPreferences, riskAssessment, suggestedAssetAllocation, investmentConstraints } = rtqData
+  const employerStock = (financialProfile as any)?.employerStock as
+    | { company: string; approxValue: number; note?: string }
+    | undefined
 
   // Prepare pie chart data for suggested allocation
   const pieChartData = [
@@ -89,8 +92,6 @@ export default function RTQDashboard() {
     { name: "Cash", RTQ: suggestedAssetAllocation.cash, IPS: ipsData.targetAssetAllocation.allocations[3].targetAllocation },
   ]
 
-  const mismatchItems = profileComparison.filter((p) => p.status === "mismatch")
-
   return (
     <AdvisorLayout>
       <div className="space-y-8">
@@ -128,33 +129,6 @@ export default function RTQDashboard() {
             </Button>
           </div>
         </div>
-
-        {/* Alert Banner for Mismatch */}
-        {mismatchItems.length > 0 && (
-          <Card className="border-amber-200 bg-amber-50">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-amber-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground">
-                    {mismatchItems.length} Discrepancies Found with IPS
-                  </h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    The RTQ results suggest a {riskAssessment.riskProfile} profile, but the IPS is set for {ipsData.riskTolerance}. 
-                    This significant divergence should be discussed with the client.
-                  </p>
-                </div>
-                <Link href="/">
-                  <Button variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-100">
-                    Review Comparison
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Key Metrics */}
         <div className="grid grid-cols-4 gap-6">
@@ -324,13 +298,13 @@ export default function RTQDashboard() {
                       </div>
                     </div>
                     )}
-                    {financialProfile.employerStock && (
+                    {employerStock && (
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
                       <AlertTriangle className="w-5 h-5 text-amber-600" />
                       <div>
                         <p className="font-medium text-foreground">Concentrated Position</p>
                         <p className="text-sm text-muted-foreground">
-                          ~${financialProfile.employerStock.approxValue.toLocaleString()} in {financialProfile.employerStock.company} employer stock
+                          ~${employerStock.approxValue.toLocaleString()} in {employerStock.company} employer stock
                         </p>
                       </div>
                     </div>
@@ -379,7 +353,7 @@ export default function RTQDashboard() {
                               border: "1px solid #e5e7eb",
                               borderRadius: "8px",
                             }}
-                            formatter={(value: number) => [`${value}%`, ""]}
+                            formatter={(value: any) => [`${typeof value === "number" ? value : Number(value)}%`, ""]}
                           />
                         </RechartsPieChart>
                       </ResponsiveContainer>
@@ -520,7 +494,7 @@ export default function RTQDashboard() {
                           border: "1px solid #e5e7eb",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number) => [`${value}%`, ""]}
+                        formatter={(value: any) => [`${typeof value === "number" ? value : Number(value)}%`, ""]}
                       />
                       <Legend />
                       <Bar dataKey="RTQ" fill="#10b981" name="RTQ Suggested" radius={[4, 4, 0, 0]} />
@@ -531,58 +505,6 @@ export default function RTQDashboard() {
               </CardContent>
             </Card>
 
-            {/* Profile Comparison Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Profile Comparison Details</CardTitle>
-                <CardDescription>Side-by-side comparison of RTQ results and IPS settings</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {profileComparison.map((item, index) => (
-                    <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
-                        {item.status === "mismatch" ? (
-                          <AlertCircle className="w-5 h-5 text-destructive" />
-                        ) : item.status === "warning" ? (
-                          <AlertTriangle className="w-5 h-5 text-amber-500" />
-                        ) : (
-                          <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-foreground">{item.category}</span>
-                          <Badge
-                            variant={item.status === "aligned" ? "secondary" : "destructive"}
-                            className={
-                              item.status === "aligned"
-                                ? "bg-green-100 text-green-700"
-                                : item.status === "warning"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : ""
-                            }
-                          >
-                            {item.status === "aligned" ? "Aligned" : item.status === "warning" ? "Review" : "Mismatch"}
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">RTQ: </span>
-                            <span className="text-foreground font-medium">{item.rtqValue}</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">IPS: </span>
-                            <span className="text-foreground font-medium">{item.ipsValue}</span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-2">{item.note}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="json" className="space-y-6">

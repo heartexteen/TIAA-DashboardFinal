@@ -43,22 +43,22 @@ export default function EstateDashboard() {
 
   // Calculate completion stats
   const totalDocs = documentsNeeded.length
-  const completedDocs = documentsNeeded.filter((d) => d.status === "complete").length
+  const completedDocs = documentsNeeded.filter((d: any) => d.status === "complete").length
   const completionPercent = Math.round((completedDocs / totalDocs) * 100)
 
   const totalActions = actionItems.length
-  const completedActions = actionItems.filter((a) => a.status === "Complete").length
+  const completedActions = actionItems.filter((a: any) => a.status === "Complete").length
 
   // Prepare asset chart data
-  const assetChartData = assetsAndRecipients.map((a) => ({
-    name: a.asset.split(" ").slice(-2).join(" "),
+  const assetChartData = assetsAndRecipients.map((a: any) => ({
+    name: String(a.asset || "").split(" ").slice(-2).join(" "),
     value: a.value,
   }))
 
-  const totalAssets = assetsAndRecipients.reduce((sum, a) => sum + a.value, 0)
+  const totalAssets = assetsAndRecipients.reduce((sum: number, a: any) => sum + (a.value || 0), 0)
 
   // Count action required items
-  const actionRequiredCount = assetsAndRecipients.filter((a) => a.status === "action_required").length
+  const actionRequiredCount = assetsAndRecipients.filter((a: any) => a.status === "action_required").length
 
   return (
     <AdvisorLayout>
@@ -292,7 +292,7 @@ export default function EstateDashboard() {
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-3">
-                      {trusteeDuties.map((duty, index) => (
+                      {(trusteeDuties as any[]).map((duty: any, index: number) => (
                         <li key={index} className="flex items-start gap-3">
                           <CheckCircle2 className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                           <span className="text-sm text-muted-foreground">{duty}</span>
@@ -323,7 +323,7 @@ export default function EstateDashboard() {
                             paddingAngle={2}
                             dataKey="value"
                           >
-                            {assetChartData.map((entry, index) => (
+                            {(assetChartData as any[]).map((entry: any, index: number) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
@@ -331,7 +331,7 @@ export default function EstateDashboard() {
                       </ResponsiveContainer>
                     </div>
                     <div className="space-y-2 mt-4">
-                      {assetChartData.map((item, index) => (
+                      {(assetChartData as any[]).map((item: any, index: number) => (
                         <div key={item.name} className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <div
@@ -365,7 +365,10 @@ export default function EstateDashboard() {
                     </div>
                     <Progress value={completionPercent} className="h-3" />
                     <div className="space-y-2">
-                      {documentsNeeded.filter((d) => d.priority === "High").slice(0, 4).map((doc, index) => (
+                      {(documentsNeeded as any[])
+                        .filter((d: any) => d.priority === "High")
+                        .slice(0, 4)
+                        .map((doc: any, index: number) => (
                         <div key={index} className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">{doc.document}</span>
                           <Badge
@@ -404,7 +407,7 @@ export default function EstateDashboard() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">High Priority Docs</span>
-                      <span className="font-medium">{documentsNeeded.filter((d) => d.priority === "High").length}</span>
+                      <span className="font-medium">{(documentsNeeded as any[]).filter((d: any) => d.priority === "High").length}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -420,7 +423,7 @@ export default function EstateDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {assetsAndRecipients.map((asset, index) => (
+                  {(assetsAndRecipients as any[]).map((asset: any, index: number) => (
                     <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-border">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -479,7 +482,7 @@ export default function EstateDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {documentsNeeded.map((doc, index) => (
+                    {(documentsNeeded as any[]).map((doc: any, index: number) => (
                       <TableRow key={index}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -531,7 +534,7 @@ export default function EstateDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {actionItems.map((item) => (
+                  {(actionItems as any[]).map((item: any) => (
                     <div key={item.id} className="flex items-start gap-4 p-4 rounded-lg border border-border">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                         <span className="text-sm font-medium">{item.id}</span>

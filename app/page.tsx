@@ -32,6 +32,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { AdvisorLayout } from "@/components/advisor-layout"
 import { useClient } from "@/lib/client-context"
+import type { Holding, HoldingsSnapshot } from "@/lib/domain/types"
 import Link from "next/link"
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
@@ -121,12 +122,11 @@ export default function ClientOverviewDashboard() {
     currentClient,
     ipsData,
     rtqData,
-    profileComparison,
     aiSuggestions,
   } = useClient()
 
   // Prepare allocation comparison data for chart
-  const allocationComparisonData = ipsData.targetAssetAllocation.allocations.map((alloc) => {
+  const allocationComparisonData = (ipsData.targetAssetAllocation.allocations as any[]).map((alloc: any) => {
     const rtqKey = alloc.assetClass.toLowerCase().replace(/\s+/g, "") as keyof typeof rtqData.suggestedAssetAllocation
     // Handle different naming conventions
     let rtqValue = 0
@@ -148,18 +148,89 @@ export default function ClientOverviewDashboard() {
   })
 
   // Prepare pie chart data for IPS allocation
-  const pieChartData = ipsData.targetAssetAllocation.allocations.map((a) => ({
+  const pieChartData = (ipsData.targetAssetAllocation.allocations as any[]).map((a: any) => ({
     name: a.assetClass,
     value: a.targetAllocation,
   }))
 
-  const highPriorityAlerts = currentClient.alerts.filter((a) => a.priority === "high")
-  const mismatchCount = profileComparison.filter((p) => p.status === "mismatch").length
+  const highPriorityAlerts = (currentClient.alerts as any[]).filter((a: any) => a.priority === "high")
+
+  const holdingsSnapshot = (ipsData as any).currentHoldings as HoldingsSnapshot | undefined
+  const moneyFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  })
+
+  const holdingsModels = (() => {
+    if (!holdingsSnapshot) return null
+
+    const holdingsWithAccount = (holdingsSnapshot.accounts as any[]).flatMap((account: any) =>
+      (account.holdings as any[]).map((h: any) => ({
+        ...h,
+        accountName: account.accountName,
+        accountType: account.accountType,
+        institution: account.institution,
+      })),
+    )
+
+    const total = holdingsWithAccount.reduce((sum: number, h: any) => sum + (h.marketValue || 0), 0)
+
+    const valueByAssetClass = new Map<string, number>()
+    for (const h of holdingsWithAccount) {
+      valueByAssetClass.set(h.assetClass, (valueByAssetClass.get(h.assetClass) || 0) + (h.marketValue || 0))
+    }
+
+    const models = (ipsData.targetAssetAllocation.allocations as any[]).map((alloc: any) => {
+      const currentValue = valueByAssetClass.get(alloc.assetClass) || 0
+      const currentPct = total > 0 ? (currentValue / total) * 100 : 0
+      const driftPct = currentPct - alloc.targetAllocation
+      const inRange = currentPct >= alloc.allowableMin && currentPct <= alloc.allowableMax
+
+      const allHoldings = holdingsWithAccount
+        .filter((h: any) => h.assetClass === alloc.assetClass)
+        .sort((a: any, b: any) => (b.marketValue || 0) - (a.marketValue || 0))
+
+      const accounts = (holdingsSnapshot.accounts as any[])
+        .map((a: any) => {
+          const value = (a.holdings as any[])
+            .filter((h: any) => h.assetClass === alloc.assetClass)
+            .reduce((sum: number, h: any) => sum + (h.marketValue || 0), 0)
+          return { accountName: a.accountName, institution: a.institution, value }
+        })
+        .filter((a: any) => a.value > 0)
+        .sort((a: any, b: any) => b.value - a.value)
+
+      const topHoldings = allHoldings.slice(0, 4)
+
+      return {
+        assetClass: alloc.assetClass,
+        targetPct: alloc.targetAllocation,
+        minPct: alloc.allowableMin,
+        maxPct: alloc.allowableMax,
+        currentValue,
+        currentPct,
+        driftPct,
+        inRange,
+        accounts,
+        allHoldings,
+        topHoldings,
+      }
+    })
+
+    const outOfRangeCount = models.filter((m: any) => !m.inRange).length
+    const driftScore =
+      models.reduce((sum: number, m: any) => sum + Math.abs((m.currentPct || 0) - (m.targetPct || 0)), 0) / 2
+
+    return { total, outOfRangeCount, driftScore, models }
+  })()
 
   const [dailySummary, setDailySummary] = useState<DailySummarySections | null>(null)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(false)
   const [dailySummaryError, setDailySummaryError] = useState<string | null>(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  const [expandedAccountsByAssetClass, setExpandedAccountsByAssetClass] = useState<Record<string, boolean>>({})
+  const [expandedHoldingsByAssetClass, setExpandedHoldingsByAssetClass] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const controller = new AbortController()
@@ -174,12 +245,7 @@ export default function ClientOverviewDashboard() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            clientContext: {
-              client: currentClient,
-              ipsData,
-              rtqData,
-              profileComparison,
-            },
+            clientKey: selectedClientId,
           }),
           signal: controller.signal,
         })
@@ -412,17 +478,30 @@ export default function ClientOverviewDashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <RefreshCcw className="w-5 h-5 text-amber-600" />
                 </div>
-                <Badge variant="secondary" className={mismatchCount > 0 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}>
-                  {mismatchCount > 0 ? `${mismatchCount} Issues` : "Aligned"}
+                <Badge
+                  variant="secondary"
+                  className={
+                    !holdingsModels
+                      ? "bg-slate-100 text-slate-700"
+                      : holdingsModels.outOfRangeCount
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-green-100 text-green-700"
+                  }
+                >
+                  {!holdingsModels
+                    ? "N/A"
+                    : holdingsModels.outOfRangeCount
+                      ? `${holdingsModels.outOfRangeCount} out of range`
+                      : "Within ranges"}
                 </Badge>
               </div>
               <div className="text-2xl font-semibold text-foreground mb-1">
-                {mismatchCount > 0 ? "Profile Mismatch" : "Profile Aligned"}
+                {holdingsModels?.outOfRangeCount ? "Needs Rebalance" : "On Track"}
               </div>
               <div className="text-sm text-muted-foreground">
-                {mismatchCount > 0 ? "IPS vs RTQ discrepancies found" : "IPS and RTQ are aligned"}
+                {holdingsModels ? `${holdingsModels.driftScore.toFixed(1)}% allocation drift vs IPS` : "Holdings not available"}
               </div>
             </CardContent>
           </Card>
@@ -462,57 +541,148 @@ export default function ClientOverviewDashboard() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">Profile Comparison</CardTitle>
-                    <CardDescription>IPS vs Risk Tolerance Questionnaire Analysis</CardDescription>
+                    <CardTitle className="text-lg">Current Holdings</CardTitle>
+                    <CardDescription>
+                      Holdings breakdown by asset class and account (aligned to IPS targets)
+                      {holdingsSnapshot?.asOf ? ` • As of ${holdingsSnapshot.asOf}` : ""}
+                    </CardDescription>
                   </div>
-                  <Link href="/client/rtq">
+                  <Link href="/client/ips">
                     <Button variant="ghost" size="sm" className="gap-1">
-                      View Details <ChevronRight className="w-4 h-4" />
+                      View IPS <ChevronRight className="w-4 h-4" />
                     </Button>
                   </Link>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {profileComparison.slice(0, 5).map((item, index) => (
-                    <div key={index} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
-                        {item.status === "mismatch" ? (
-                          <AlertCircle className="w-5 h-5 text-destructive" />
-                        ) : item.status === "warning" ? (
-                          <AlertTriangle className="w-5 h-5 text-amber-500" />
-                        ) : (
-                          <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        )}
+                {!holdingsModels ? (
+                  <div className="text-sm text-muted-foreground">No holdings data available for this client.</div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="text-muted-foreground">
+                        Total portfolio value:{" "}
+                        <span className="text-foreground font-medium">
+                          {moneyFormatter.format(holdingsModels.total)}
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-foreground">{item.category}</span>
-                          <Badge
-                            variant={item.status === "aligned" ? "secondary" : "destructive"}
-                            className={
-                              item.status === "aligned"
-                                ? "bg-green-100 text-green-700"
-                                : item.status === "warning"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : ""
-                            }
-                          >
-                            {item.status === "aligned" ? "Aligned" : item.status === "warning" ? "Review" : "Mismatch"}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-muted-foreground">
-                            IPS: <span className="text-foreground">{item.ipsValue}</span>
-                          </span>
-                          <span className="text-muted-foreground">
-                            RTQ: <span className="text-foreground">{item.rtqValue}</span>
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="secondary"
+                          className={
+                            holdingsModels.outOfRangeCount ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+                          }
+                        >
+                          {holdingsModels.outOfRangeCount ? `${holdingsModels.outOfRangeCount} out of range` : "Within ranges"}
+                        </Badge>
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                          Drift: {holdingsModels.driftScore.toFixed(1)}%
+                        </Badge>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {(holdingsModels.models as any[]).map((m: any) => (
+                        <Card key={m.assetClass} className="shadow-sm">
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-medium text-foreground truncate">{m.assetClass}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {m.currentPct.toFixed(1)}% current • {m.targetPct}% target • Range {m.minPct}–{m.maxPct}%
+                                </div>
+                              </div>
+                              <Badge
+                                variant={m.inRange ? "secondary" : "destructive"}
+                                className={m.inRange ? "bg-green-100 text-green-700" : ""}
+                              >
+                                {m.inRange ? "In Range" : "Out of Range"}
+                              </Badge>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm text-muted-foreground">Market value</div>
+                              <div className="text-sm font-medium text-foreground">
+                                {moneyFormatter.format(m.currentValue)}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm text-muted-foreground">Drift</div>
+                              <div className="text-sm font-medium text-foreground">
+                                {m.driftPct >= 0 ? "+" : ""}
+                                {m.driftPct.toFixed(1)}%
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <div className="text-xs font-medium text-muted-foreground mb-1">Accounts</div>
+                                <div className="space-y-1">
+                                  {(expandedAccountsByAssetClass[m.assetClass] ? m.accounts : m.accounts.slice(0, 3)).map((a: any) => (
+                                    <div key={a.accountName} className="flex items-center justify-between text-xs">
+                                      <span className="truncate text-foreground" title={a.accountName}>
+                                        {a.accountName}
+                                      </span>
+                                      <span className="text-muted-foreground">{moneyFormatter.format(a.value)}</span>
+                                    </div>
+                                  ))}
+                                  {m.accounts.length > 3 && (
+                                    <button
+                                      type="button"
+                                      className="text-xs text-primary hover:underline"
+                                      onClick={() =>
+                                        setExpandedAccountsByAssetClass((prev) => ({
+                                          ...prev,
+                                          [m.assetClass]: !prev[m.assetClass],
+                                        }))
+                                      }
+                                    >
+                                      {expandedAccountsByAssetClass[m.assetClass]
+                                        ? "Show less"
+                                        : `+${m.accounts.length - 3} more`}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="text-xs font-medium text-muted-foreground mb-1">Top holdings</div>
+                                <div className="space-y-1">
+                                  {(expandedHoldingsByAssetClass[m.assetClass] ? m.allHoldings : m.topHoldings).map(
+                                    (h: Holding & { accountName: string }) => (
+                                    <div key={h.id} className="flex items-center justify-between text-xs">
+                                      <span className="truncate text-foreground" title={`${h.name} • ${h.accountName}`}>
+                                        {h.ticker ? `${h.ticker} — ${h.name}` : h.name}
+                                      </span>
+                                      <span className="text-muted-foreground">{moneyFormatter.format(h.marketValue)}</span>
+                                    </div>
+                                  ))}
+                                  {m.allHoldings.length > 4 && (
+                                    <button
+                                      type="button"
+                                      className="text-xs text-primary hover:underline"
+                                      onClick={() =>
+                                        setExpandedHoldingsByAssetClass((prev) => ({
+                                          ...prev,
+                                          [m.assetClass]: !prev[m.assetClass],
+                                        }))
+                                      }
+                                    >
+                                      {expandedHoldingsByAssetClass[m.assetClass]
+                                        ? "Show less"
+                                        : `+${m.allHoldings.length - 4} more`}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -529,15 +699,15 @@ export default function ClientOverviewDashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis type="number" domain={[0, 80]} stroke="#6b7280" fontSize={12} />
                       <YAxis dataKey="name" type="category" stroke="#6b7280" fontSize={12} width={100} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "white",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "8px",
-                          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                        }}
-                        formatter={(value: number) => [`${value}%`, ""]}
-                      />
+	                      <Tooltip
+	                        contentStyle={{
+	                          backgroundColor: "white",
+	                          border: "1px solid #e5e7eb",
+	                          borderRadius: "8px",
+	                          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+	                        }}
+	                        formatter={(value: any) => [`${typeof value === "number" ? value : Number(value)}%`, ""]}
+	                      />
                       <Legend />
                       <Bar dataKey="IPS" fill="#3b82f6" name="IPS Target" radius={[0, 4, 4, 0]} />
                       <Bar dataKey="RTQ" fill="#10b981" name="RTQ Suggested" radius={[0, 4, 4, 0]} />
@@ -564,7 +734,7 @@ export default function ClientOverviewDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {ipsData.clientProfile.accounts.map((account, index) => (
+                  {(ipsData.clientProfile.accounts as any[]).map((account: any, index: number) => (
                     <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-border">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -656,23 +826,23 @@ export default function ClientOverviewDashboard() {
                         paddingAngle={2}
                         dataKey="value"
                       >
-                        {pieChartData.map((entry, index) => (
+                        {(pieChartData as any[]).map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "white",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "8px",
-                        }}
-                        formatter={(value: number) => [`${value}%`, ""]}
-                      />
+	                      <Tooltip
+	                        contentStyle={{
+	                          backgroundColor: "white",
+	                          border: "1px solid #e5e7eb",
+	                          borderRadius: "8px",
+	                        }}
+	                        formatter={(value: any) => [`${typeof value === "number" ? value : Number(value)}%`, ""]}
+	                      />
                     </RechartsPieChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
-                  {pieChartData.map((item, index) => (
+                  {(pieChartData as any[]).map((item: any, index: number) => (
                     <div key={item.name} className="flex items-center gap-2 text-sm">
                       <div
                         className="w-3 h-3 rounded-full"
@@ -699,7 +869,7 @@ export default function ClientOverviewDashboard() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {aiSuggestions.slice(0, 4).map((action) => (
+                {(aiSuggestions as any[]).slice(0, 4).map((action: any) => (
                   <div
                     key={action.id}
                     className="p-3 rounded-lg bg-muted/50 border-l-4"

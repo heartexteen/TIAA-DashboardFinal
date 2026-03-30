@@ -33,7 +33,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { clients } from "@/lib/mock-data"
 import { useClient } from "@/lib/client-context"
 import { cn } from "@/lib/utils"
 
@@ -61,7 +60,7 @@ const documentNavigation = [
 export function AdvisorLayout({ children }: AdvisorLayoutProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { selectedClientId, setSelectedClientId, currentClient } = useClient()
+  const { clients, selectedClientId, setSelectedClientId, currentClient } = useClient()
   const [clientSearch, setClientSearch] = useState("")
   const [documentsOpen, setDocumentsOpen] = useState(true)
   
@@ -75,7 +74,7 @@ export function AdvisorLayout({ children }: AdvisorLayoutProps) {
       client.name.toLowerCase().includes(searchLower) ||
       client.email.toLowerCase().includes(searchLower)
     )
-  }, [clientSearch])
+  }, [clientSearch, clients])
 
   const handleClientChange = (clientId: string) => {
     setSelectedClientId(clientId)

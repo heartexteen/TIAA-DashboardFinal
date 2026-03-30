@@ -45,13 +45,13 @@ export default function IPSDashboard() {
   const { clientProfile, investmentObjectives, riskTolerance, timeHorizon, liquidityNeeds, returnGoal, targetAssetAllocation, advisorNotes, benchmarks } = ipsData
 
   // Prepare pie chart data
-  const pieChartData = targetAssetAllocation.allocations.map((a) => ({
+  const pieChartData = (targetAssetAllocation.allocations as any[]).map((a: any) => ({
     name: a.assetClass,
     value: a.targetAllocation,
   }))
 
   // Prepare range chart data
-  const rangeChartData = targetAssetAllocation.allocations.map((a) => ({
+  const rangeChartData = (targetAssetAllocation.allocations as any[]).map((a: any) => ({
     name: a.assetClass,
     target: a.targetAllocation,
     min: a.allowableMin,
@@ -170,7 +170,7 @@ export default function IPSDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {investmentObjectives.map((objective, index) => (
+                      {(investmentObjectives as any[]).map((objective: any, index: number) => (
                         <Badge key={index} variant="secondary" className="px-3 py-1">
                           <CheckCircle2 className="w-3 h-3 mr-2" />
                           {objective}
@@ -210,7 +210,7 @@ export default function IPSDashboard() {
                     <CardDescription>Important considerations from the advisor</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {advisorNotes.map((note, index) => (
+                    {(advisorNotes as any[]).map((note: any, index: number) => (
                       <div key={index} className="p-4 rounded-lg bg-muted/50 border-l-4 border-primary">
                         <h4 className="font-semibold text-foreground mb-2">{note.title}</h4>
                         <p className="text-sm text-muted-foreground">{note.content}</p>
@@ -234,7 +234,7 @@ export default function IPSDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {benchmarks.map((benchmark, index) => (
+                        {(benchmarks as any[]).map((benchmark: any, index: number) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">{benchmark.assetClass}</TableCell>
                             <TableCell className="text-muted-foreground">{benchmark.benchmark}</TableCell>
@@ -293,7 +293,7 @@ export default function IPSDashboard() {
                             paddingAngle={2}
                             dataKey="value"
                           >
-                            {pieChartData.map((entry, index) => (
+                            {(pieChartData as any[]).map((entry: any, index: number) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
@@ -303,13 +303,13 @@ export default function IPSDashboard() {
                               border: "1px solid #e5e7eb",
                               borderRadius: "8px",
                             }}
-                            formatter={(value: number) => [`${value}%`, ""]}
+                            formatter={(value: any) => [`${typeof value === "number" ? value : Number(value)}%`, ""]}
                           />
                         </RechartsPieChart>
                       </ResponsiveContainer>
                     </div>
                     <div className="space-y-2 mt-4">
-                      {pieChartData.map((item, index) => (
+                      {(pieChartData as any[]).map((item: any, index: number) => (
                         <div key={item.name} className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <div
@@ -347,7 +347,7 @@ export default function IPSDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {targetAssetAllocation.allocations.map((allocation, index) => (
+                      {(targetAssetAllocation.allocations as any[]).map((allocation: any, index: number) => (
                         <TableRow key={index}>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -387,7 +387,10 @@ export default function IPSDashboard() {
                             border: "1px solid #e5e7eb",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number, name: string) => [`${value}%`, name === "target" ? "Target" : name]}
+                          formatter={(value: any, name: any) => [
+                            `${typeof value === "number" ? value : Number(value)}%`,
+                            name === "target" ? "Target" : String(name),
+                          ]}
                         />
                         <Bar dataKey="target" fill="#3b82f6" name="Target" radius={[0, 4, 4, 0]} />
                       </BarChart>
@@ -403,7 +406,7 @@ export default function IPSDashboard() {
                 <CardTitle className="text-lg">Allocation Breakdown with Ranges</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {targetAssetAllocation.allocations.map((allocation, index) => (
+                {(targetAssetAllocation.allocations as any[]).map((allocation: any, index: number) => (
                   <div key={index}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -450,7 +453,7 @@ export default function IPSDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {clientProfile.accounts.map((account, index) => (
+                  {(clientProfile.accounts as any[]).map((account: any, index: number) => (
                     <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-border">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">

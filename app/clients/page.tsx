@@ -25,10 +25,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AdvisorLayout } from "@/components/advisor-layout"
-import { clients } from "@/lib/mock-data"
+import { useClient } from "@/lib/client-context"
 import Link from "next/link"
 
 export default function ClientsPage() {
+  const { clients } = useClient()
   const totalAUM = clients.reduce((sum, c) => sum + c.totalAssets, 0)
   const activeClients = clients.filter((c) => c.status === "active").length
   const alertCount = clients.reduce((sum, c) => sum + c.alerts.filter((a) => a.priority === "high").length, 0)

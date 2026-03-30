@@ -1,16 +1,13 @@
 import { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import { createAgent2ChatPrepareGraph, type ChatMessage } from "@/lib/agents/agent2/chat-prepare-graph"
+import { getTiaaS3Config } from "@/lib/aws/config"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-type ChatMessage = {
-  role?: "user" | "assistant" | string
-  content: string
-}
-
 type ChatRequestBody = {
+  clientKey: string
   messages: ChatMessage[]
-  clientContext?: unknown
   modelId?: string
   temperature?: number
   maxTokens?: number
@@ -22,63 +19,10 @@ function getDefaultModelId() {
   return process.env.BEDROCK_MODEL_ID || "amazon.nova-pro-v1:0"
 }
 
-function createSystemPrompt(clientContext?: unknown) {
-  const base = [
-    "You are an AI advisor assistant for a financial dashboard.",
-    "Be helpful, accurate, and concise.",
-    "If you are missing information, ask a clarifying question.",
-    "If the user asks for something unrelated to the provided client context, you can still answer generally.",
-  ].join("\n")
-
-  if (clientContext == null) return base
-
-  let contextText = ""
-  try {
-    contextText = JSON.stringify(clientContext)
-  } catch {
-    contextText = String(clientContext)
-  }
-
-  const maxChars = 35_000
-  if (contextText.length > maxChars) {
-    contextText = contextText.slice(0, maxChars) + "...(truncated)"
-  }
-
-  return `${base}\n\nClient context (JSON):\n${contextText}`
-}
-
-function normalizeMessages(messages: ChatMessage[]) {
-  const normalized = messages
-    .filter((m) => m && typeof m.content === "string" && m.content.trim().length > 0)
-    .map((m) => {
-      const role = m.role === "assistant" ? "assistant" : "user"
-      return { role, content: m.content }
-    })
-
-  const firstUserIndex = normalized.findIndex((m) => m.role === "user")
-  const leadingAssistantText =
-    firstUserIndex > 0 ? normalized.slice(0, firstUserIndex).map((m) => m.content).join("\n\n") : ""
-  const conversation = firstUserIndex >= 0 ? normalized.slice(firstUserIndex) : []
-
-  return { conversation, leadingAssistantText }
-}
-
 function createBedrockClient() {
-  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION
-  if (!region) {
-    throw new Error("Missing AWS region. Set AWS_REGION (or AWS_DEFAULT_REGION).")
-  }
-  return new BedrockRuntimeClient({ region })
+  const cfg = getTiaaS3Config()
+  return new BedrockRuntimeClient({ region: cfg.region })
 }
-
-import { ConversationRole } from "@aws-sdk/client-bedrock-runtime";
-
-const toBedrockMessages = (conversation: any[]) => {
-  return conversation.map((msg) => ({
-    role: msg.role as ConversationRole,
-    content: [{ text: msg.content }],
-  }));
-};
 
 async function readConverseText(output: unknown): Promise<string> {
   const out = output as any
@@ -100,21 +44,27 @@ export async function POST(req: Request) {
     return Response.json({ error: "Missing messages." }, { status: 400 })
   }
 
+  const clientKey = typeof body.clientKey === "string" && body.clientKey.trim() ? body.clientKey.trim() : ""
+  if (!clientKey) {
+    return Response.json({ error: "Missing clientKey." }, { status: 400 })
+  }
+
   const modelId = body.modelId || getDefaultModelId()
   const temperature = typeof body.temperature === "number" ? body.temperature : 0.3
   const maxTokens = typeof body.maxTokens === "number" ? body.maxTokens : 800
 
   const bedrock = createBedrockClient()
-  const { conversation, leadingAssistantText } = normalizeMessages(rawMessages)
-  if (conversation.length === 0) {
+
+  // Agent 2: load context from S3 + prepare prompt/messages.
+  const agent2 = createAgent2ChatPrepareGraph()
+  const prepared = await agent2.run({ clientKey, messages: rawMessages })
+
+  const conversation = prepared.conversation || []
+  if (conversation.length === 0 || !prepared.bedrockMessages) {
     return Response.json({ error: "No user message found to start the conversation." }, { status: 400 })
   }
 
-  const systemBase = createSystemPrompt(body.clientContext)
-  const system =
-    leadingAssistantText.trim().length > 0
-      ? `${systemBase}\n\nPrior assistant context:\n${leadingAssistantText}`
-      : systemBase
+  const system = prepared.system || "You are an AI assistant."
 
   const responseStream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -126,7 +76,7 @@ export async function POST(req: Request) {
         const command = new ConverseStreamCommand({
           modelId,
           system: [{ text: system }],
-          messages: toBedrockMessages(conversation),
+          messages: prepared.bedrockMessages,
           inferenceConfig: { maxTokens, temperature },
         })
 
@@ -145,7 +95,7 @@ export async function POST(req: Request) {
           const command = new ConverseCommand({
             modelId,
             system: [{ text: system }],
-            messages: toBedrockMessages(conversation),
+            messages: prepared.bedrockMessages,
             inferenceConfig: { maxTokens, temperature },
           })
           const resp: any = await bedrock.send(command)

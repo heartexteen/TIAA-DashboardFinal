@@ -30,20 +30,42 @@ interface Message {
 }
 
 export default function AIAssistantPage() {
-  const { currentClient, ipsData, rtqData, estateData, profileComparison, aiSuggestions, meetingTopics } = useClient()
+  const { selectedClientId, currentClient, ipsData, aiSuggestions } = useClient()
   
   // Dynamic suggested questions based on client
   const suggestedQuestions = useMemo(() => [
     `What risks should I discuss with ${currentClient.name}?`,
     `What investment recommendations might fit ${currentClient.name.split(' ')[0]}'s profile?`,
-    `Are there inconsistencies between ${currentClient.name.split(' ')[0]}'s RTQ and IPS?`,
+    `Is ${currentClient.name.split(' ')[0]}'s portfolio aligned with the IPS target allocation?`,
     "What topics should I bring up in the next meeting?",
     "How should I address the concentrated stock position?",
     "What estate planning items need immediate attention?",
   ], [currentClient.name])
 
-  // Get mismatches from profile comparison
-  const mismatches = profileComparison.filter((p) => p.status === "mismatch")
+  const holdingsSnapshot = (ipsData as any).currentHoldings as any
+  const holdingsAlignment = useMemo(() => {
+    if (!holdingsSnapshot?.accounts || !Array.isArray(holdingsSnapshot.accounts)) return null
+    const holdings = holdingsSnapshot.accounts.flatMap((a: any) =>
+      Array.isArray(a.holdings) ? a.holdings : [],
+    )
+    const total = holdings.reduce((sum: number, h: any) => sum + (h.marketValue || 0), 0)
+    if (total <= 0) return null
+
+    const byClass = new Map<string, number>()
+    for (const h of holdings) byClass.set(h.assetClass, (byClass.get(h.assetClass) || 0) + (h.marketValue || 0))
+
+    const models = ipsData.targetAssetAllocation.allocations.map((alloc: any) => {
+      const value = byClass.get(alloc.assetClass) || 0
+      const pct = (value / total) * 100
+      const inRange = pct >= alloc.allowableMin && pct <= alloc.allowableMax
+      return { assetClass: alloc.assetClass, pct, target: alloc.targetAllocation, inRange }
+    })
+
+    const outOfRangeCount = models.filter((m: any) => !m.inRange).length
+    const driftScore = models.reduce((sum: number, m: any) => sum + Math.abs(m.pct - m.target), 0) / 2
+    return { outOfRangeCount, driftScore }
+  }, [ipsData, currentClient.id])
+
   const highPriorityAlerts = currentClient.alerts.filter((a) => a.priority === "high")
 
   // Initial message based on current client
@@ -53,7 +75,9 @@ export default function AIAssistantPage() {
     content: `Hello! I'm your AI Advisor Assistant. I have access to ${currentClient.name}'s financial documents including their IPS, RTQ, and Estate Planning Worksheet.
 
 I've identified several key insights:
-${mismatches.length > 0 ? `- **Profile Discrepancies**: ${mismatches.length} mismatch(es) found between IPS and RTQ` : '- **Profiles Aligned**: IPS and RTQ are consistent'}
+${holdingsAlignment
+  ? `- **IPS Alignment**: ${holdingsAlignment.driftScore.toFixed(1)}% drift (${holdingsAlignment.outOfRangeCount} out of range)`
+  : "- **IPS Alignment**: Holdings not available"}
 ${highPriorityAlerts.length > 0 ? `- **${highPriorityAlerts.length} High Priority Alert(s)**: ${highPriorityAlerts[0]?.title}` : '- **No urgent alerts**'}
 - **Total AUM**: $${(currentClient.totalAssets / 1000000).toFixed(2)}M
 
@@ -66,15 +90,8 @@ How can I help you prepare for your next client meeting?`,
   const [isLoading, setIsLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const buildClientContext = () => ({
-    client: currentClient,
-    ips: ipsData,
-    rtq: rtqData,
-    estate: estateData,
-    profileComparison,
-    aiSuggestions,
-    meetingTopics,
-  })
+  // NOTE: We no longer send the full client context from the browser.
+  // Agent 2 loads the client JSON bundle from S3 server-side using `clientKey`.
 
   // Reset messages when client changes
   useEffect(() => {
@@ -119,8 +136,8 @@ How can I help you prepare for your next client meeting?`,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientKey: selectedClientId,
           messages: nextConversation,
-          clientContext: buildClientContext(),
         }),
       })
 
@@ -344,7 +361,7 @@ How can I help you prepare for your next client meeting?`,
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {aiSuggestions.slice(0, 3).map((action) => (
+              {(aiSuggestions as any[]).slice(0, 3).map((action: any) => (
                 <div
                   key={action.id}
                   className="p-3 rounded-lg bg-muted/50 border-l-4"
