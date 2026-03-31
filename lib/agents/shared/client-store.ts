@@ -18,6 +18,8 @@
  * - The UI expects the same "shape" as the old `useClient()` context.
  */
 
+import { IPS_TEMPLATE, RTQ_TEMPLATE, ESTATE_TEMPLATE, mergeWithTemplate } from "@/lib/agents/agent1/contracts"
+import { sanitizeIpsData, sanitizeRtqData, sanitizeEstateData } from "@/lib/agents/agent1/sanitizers"
 import { getTiaaS3Config } from "@/lib/aws/config"
 import { s3GetJson, s3ListSubPrefixes } from "@/lib/aws/s3"
 
@@ -100,12 +102,12 @@ export async function loadClientContextBundleFromS3(clientKey: ClientKey): Promi
   return {
     clientKey,
     currentClient,
-    ipsData,
-    rtqData,
-    estateData,
-    profileComparison,
-    aiSuggestions,
-    meetingTopics,
+    ipsData: sanitizeIpsData(mergeWithTemplate(IPS_TEMPLATE, ipsData)),
+    rtqData: sanitizeRtqData(mergeWithTemplate(RTQ_TEMPLATE, rtqData)),
+    estateData: sanitizeEstateData(mergeWithTemplate(ESTATE_TEMPLATE, estateData)),
+    profileComparison: Array.isArray(profileComparison) ? profileComparison : [],
+    aiSuggestions: Array.isArray(aiSuggestions) ? aiSuggestions : [],
+    meetingTopics: Array.isArray(meetingTopics) ? meetingTopics : [],
   }
 }
 

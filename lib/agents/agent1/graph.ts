@@ -1,18 +1,17 @@
 /**
  * Agent 1 (Extractor) - Graph definition.
  *
- * In seed-mode (today):
- *   START -> seed_from_local_mock -> END
+ * Pipeline:
+ *   START -> extract_from_s3_pdfs -> END
  *
- * In real extraction mode (future):
- *   START -> list_pdfs_from_s3 -> extract_fields_with_llm -> validate_schema -> write_json -> END
+ * The extraction logic is decomposed into a multi-step pipeline
+ * (see ./pipeline/) with validation against reference data.
  */
 
 import { AgentGraph } from "@/lib/agentic/graph"
-import { seedAgent1OutputsFromS3MockData } from "./seed-from-s3-mock"
+import { extractAgent1OutputsFromS3Pdfs } from "./pipeline"
 
 export type Agent1SeedState = {
-  // When true, Agent 1 did work (useful for debugging).
   seeded?: boolean
   wroteKeys?: string[]
   error?: string
@@ -22,14 +21,13 @@ export type Agent1SeedState = {
 export function createAgent1SeedGraph() {
   const g = new AgentGraph<Agent1SeedState>()
 
-  g.addNode("seed_from_s3_mock_ts", async () => {
-    const result = await seedAgent1OutputsFromS3MockData()
+  g.addNode("extract_from_s3_pdfs", async () => {
+    const result = await extractAgent1OutputsFromS3Pdfs()
     const wroteKeys = result.wrote.flatMap((w) => w.keys)
     return { seeded: true, wroteKeys }
   })
 
-  // Single-node flow for now.
-  g.setStart("seed_from_s3_mock_ts")
+  g.setStart("extract_from_s3_pdfs")
 
   return g
 }

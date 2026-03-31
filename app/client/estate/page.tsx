@@ -40,25 +40,48 @@ const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
 export default function EstateDashboard() {
   const { estateData, ipsData, currentClient } = useClient()
   const { personalInformation, powerOfAttorney, beneficiaries, taxExemption, assetsAndRecipients, trusteeDuties, documentsNeeded, actionItems } = estateData as typeof estateData & { trusteeDuties?: string[], documentsNeeded?: Array<{ name: string, status: string }> }
+  const safeAssetsAndRecipients = Array.isArray(assetsAndRecipients)
+    ? assetsAndRecipients.map((asset: any) => ({
+        asset: String(asset?.asset || ""),
+        value: Number(asset?.value || 0),
+        recipient: String(asset?.recipient || ""),
+        status: String(asset?.status || ""),
+      }))
+    : []
+  const safeDocumentsNeeded = Array.isArray(documentsNeeded)
+    ? documentsNeeded.map((doc: any) => ({
+        document: String(doc?.document || doc?.name || ""),
+        status: String(doc?.status || ""),
+        priority: String(doc?.priority || ""),
+      }))
+    : []
+  const safeActionItems = Array.isArray(actionItems)
+    ? actionItems.map((item: any, index: number) => ({
+        id: Number(item?.id || index + 1),
+        action: String(item?.action || ""),
+        responsible: String(item?.responsible || ""),
+        status: String(item?.status || ""),
+      }))
+    : []
 
   // Calculate completion stats
-  const totalDocs = documentsNeeded.length
-  const completedDocs = documentsNeeded.filter((d: any) => d.status === "complete").length
-  const completionPercent = Math.round((completedDocs / totalDocs) * 100)
+  const totalDocs = safeDocumentsNeeded.length
+  const completedDocs = safeDocumentsNeeded.filter((d: any) => d.status === "complete").length
+  const completionPercent = totalDocs > 0 ? Math.round((completedDocs / totalDocs) * 100) : 0
 
-  const totalActions = actionItems.length
-  const completedActions = actionItems.filter((a: any) => a.status === "Complete").length
+  const totalActions = safeActionItems.length
+  const completedActions = safeActionItems.filter((a: any) => a.status === "Complete").length
 
   // Prepare asset chart data
-  const assetChartData = assetsAndRecipients.map((a: any) => ({
+  const assetChartData = safeAssetsAndRecipients.map((a: any) => ({
     name: String(a.asset || "").split(" ").slice(-2).join(" "),
-    value: a.value,
+    value: Number(a.value || 0),
   }))
 
-  const totalAssets = assetsAndRecipients.reduce((sum: number, a: any) => sum + (a.value || 0), 0)
+  const totalAssets = safeAssetsAndRecipients.reduce((sum: number, a: any) => sum + Number(a.value || 0), 0)
 
   // Count action required items
-  const actionRequiredCount = assetsAndRecipients.filter((a: any) => a.status === "action_required").length
+  const actionRequiredCount = safeAssetsAndRecipients.filter((a: any) => a.status === "action_required").length
 
   return (
     <AdvisorLayout>
@@ -365,8 +388,8 @@ export default function EstateDashboard() {
                     </div>
                     <Progress value={completionPercent} className="h-3" />
                     <div className="space-y-2">
-                      {(documentsNeeded as any[])
-                        .filter((d: any) => d.priority === "High")
+                      {safeDocumentsNeeded
+                        .filter((d: any) => String(d.priority).toLowerCase() === "high")
                         .slice(0, 4)
                         .map((doc: any, index: number) => (
                         <div key={index} className="flex items-center justify-between text-sm">
@@ -395,7 +418,7 @@ export default function EstateDashboard() {
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Total Assets</span>
-                      <span className="font-medium">{assetsAndRecipients.length}</span>
+                      <span className="font-medium">{safeAssetsAndRecipients.length}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Action Required</span>
@@ -407,7 +430,7 @@ export default function EstateDashboard() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">High Priority Docs</span>
-                      <span className="font-medium">{(documentsNeeded as any[]).filter((d: any) => d.priority === "High").length}</span>
+                      <span className="font-medium">{safeDocumentsNeeded.filter((d: any) => String(d.priority).toLowerCase() === "high").length}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -423,7 +446,7 @@ export default function EstateDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {(assetsAndRecipients as any[]).map((asset: any, index: number) => (
+                  {safeAssetsAndRecipients.map((asset: any, index: number) => (
                     <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-border">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -436,7 +459,7 @@ export default function EstateDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-xl font-semibold text-foreground">
-                          ${asset.value.toLocaleString()}
+                          ${Number(asset.value || 0).toLocaleString()}
                         </p>
                         <Badge
                           variant="secondary"
@@ -482,7 +505,7 @@ export default function EstateDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(documentsNeeded as any[]).map((doc: any, index: number) => (
+                    {safeDocumentsNeeded.map((doc: any, index: number) => (
                       <TableRow key={index}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -494,7 +517,7 @@ export default function EstateDashboard() {
                           <Badge
                             variant="secondary"
                             className={
-                              doc.priority === "High"
+                              String(doc.priority).toLowerCase() === "high"
                                 ? "bg-red-100 text-red-700"
                                 : "bg-blue-100 text-blue-700"
                             }
@@ -534,7 +557,7 @@ export default function EstateDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {(actionItems as any[]).map((item: any) => (
+                  {safeActionItems.map((item: any) => (
                     <div key={item.id} className="flex items-start gap-4 p-4 rounded-lg border border-border">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                         <span className="text-sm font-medium">{item.id}</span>

@@ -12,17 +12,16 @@ export const dynamic = "force-dynamic"
  * - Scans S3 `agent1(extractor)-output(json)/` for client folders (prefixes).
  * - Loads each client's `client.json`.
  *
- * Seed mode (temporary):
- * - If client.json files don't exist yet, we auto-run Agent 1 seed graph
- *   to populate S3 output from local mock data.
+ * Extraction mode:
+ * - If client.json files don't exist yet, we auto-run Agent 1
+ *   so it extracts the source PDFs from S3 and writes JSON artifacts.
  *
  * IMPORTANT:
- * - Auto-seeding is meant for development only.
- * - In production, Agent 1 should be a real extraction pipeline writing these artifacts.
+ * - Agent 1 is the extraction pipeline writing these artifacts.
  */
 export async function GET() {
-  const autoSeed =
-    (process.env.TIAA_AUTO_SEED_FROM_LOCAL_MOCK_DATA || "").toLowerCase() === "true" ||
+  const autoExtract =
+    (process.env.TIAA_AUTO_EXTRACT_FROM_S3_PDFS || "").toLowerCase() === "true" ||
     process.env.NODE_ENV !== "production"
 
   let clientKeys = await listClientKeysFromS3()
@@ -45,8 +44,8 @@ export async function GET() {
 
   let { clients, missing } = await tryLoad()
 
-  // If folders exist but JSON artifacts are missing (or no folders yet), seed.
-  if (autoSeed && (clientKeys.length === 0 || missing.length > 0)) {
+  // If folders exist but JSON artifacts are missing (or no folders yet), run Agent 1 extraction.
+  if (autoExtract && (clientKeys.length === 0 || missing.length > 0)) {
     const g = createAgent1SeedGraph()
     await g.run({})
 
@@ -61,9 +60,8 @@ export async function GET() {
       clientKeys,
       clients,
       missingClientArtifacts: missing,
-      seededFromLocalMockData: autoSeed && (missing.length > 0 || clientKeys.length === 0) ? true : undefined,
+      extractedFromS3Pdfs: autoExtract && (missing.length > 0 || clientKeys.length === 0) ? true : undefined,
     },
     { status: 200 },
   )
 }
-

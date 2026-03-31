@@ -37,83 +37,14 @@ import Link from "next/link"
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
 
-type DailySummarySections = {
+type DailySummaryData = {
+  generatedAt?: string
   asOf?: string
-  globalEvents: string[]
-  portfolioImpact: string[]
-  riskGuidance: string[]
-  warnings: string[]
+  marketOverview: Array<{ headline: string; detail: string; source: string }>
+  portfolioImpact: Array<{ area: string; impact: string; severity: "high" | "medium" | "low" }>
+  clientActions: Array<{ action: string; rationale: string; priority: "high" | "medium" | "low" }>
+  riskAlerts: Array<{ alert: string; severity: "high" | "medium" | "low" }>
   sources: Array<{ title: string; url: string }>
-  raw: string
-}
-
-function parseDailySummarySections(text: string): DailySummarySections {
-  const sections: DailySummarySections = {
-    asOf: undefined,
-    globalEvents: [],
-    portfolioImpact: [],
-    riskGuidance: [],
-    warnings: [],
-    sources: [],
-    raw: text,
-  }
-
-  const lines = text
-    .split(/\r?\n/g)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-
-  type SectionKey = "global" | "impact" | "guidance" | "warnings" | "sources" | null
-  let current: SectionKey = null
-
-  for (const line of lines) {
-    const upper = line.toUpperCase()
-    if (upper.startsWith("AS_OF:")) {
-      const value = line.slice(6).trim()
-      sections.asOf = value || undefined
-      continue
-    }
-    if (upper === "GLOBAL:" || upper.startsWith("GLOBAL:")) {
-      current = "global"
-      continue
-    }
-    if (upper === "IMPACT:" || upper.startsWith("IMPACT:")) {
-      current = "impact"
-      continue
-    }
-    if (upper === "GUIDANCE:" || upper.startsWith("GUIDANCE:")) {
-      current = "guidance"
-      continue
-    }
-    if (upper === "WARNINGS:" || upper.startsWith("WARNINGS:")) {
-      current = "warnings"
-      continue
-    }
-    if (upper === "SOURCES:" || upper.startsWith("SOURCES:")) {
-      current = "sources"
-      continue
-    }
-
-    const bulletMatch = line.match(/^[-•]\s+(.*)$/)
-    if (!bulletMatch) continue
-    const bullet = bulletMatch[1].trim()
-    if (!bullet) continue
-
-    if (current === "global") sections.globalEvents.push(bullet)
-    else if (current === "impact") sections.portfolioImpact.push(bullet)
-    else if (current === "guidance") sections.riskGuidance.push(bullet)
-    else if (current === "warnings") sections.warnings.push(bullet)
-    else if (current === "sources") {
-      if (/^none$/i.test(bullet)) continue
-      const urlMatch = bullet.match(/https?:\/\/\S+/)
-      const url = urlMatch?.[0]
-      if (!url) continue
-      const title = bullet.replace(url, "").replace(/[—-]\s*$/, "").trim() || url
-      sections.sources.push({ title, url })
-    }
-  }
-
-  return sections
 }
 
 export default function ClientOverviewDashboard() {
@@ -123,7 +54,10 @@ export default function ClientOverviewDashboard() {
     ipsData,
     rtqData,
     aiSuggestions,
+    refresh,
   } = useClient()
+
+  const [reextracting, setReextracting] = useState(false)
 
   // Prepare allocation comparison data for chart
   const allocationComparisonData = (ipsData.targetAssetAllocation.allocations as any[]).map((alloc: any) => {
@@ -225,16 +159,17 @@ export default function ClientOverviewDashboard() {
     return { total, outOfRangeCount, driftScore, models }
   })()
 
-  const [dailySummary, setDailySummary] = useState<DailySummarySections | null>(null)
+  const [dailySummary, setDailySummary] = useState<DailySummaryData | null>(null)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(false)
   const [dailySummaryError, setDailySummaryError] = useState<string | null>(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  const [dailySummaryForce, setDailySummaryForce] = useState(false)
   const [expandedAccountsByAssetClass, setExpandedAccountsByAssetClass] = useState<Record<string, boolean>>({})
   const [expandedHoldingsByAssetClass, setExpandedHoldingsByAssetClass] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const controller = new AbortController()
-    const timeoutMs = 45_000
+    const timeoutMs = 60_000
     const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
     async function run() {
@@ -246,22 +181,18 @@ export default function ClientOverviewDashboard() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             clientKey: selectedClientId,
+            force: dailySummaryForce,
           }),
           signal: controller.signal,
         })
 
-        if (!res.ok) {
-          const contentType = res.headers.get("content-type") || ""
-          if (contentType.includes("application/json")) {
-            const json = await res.json()
-            throw new Error(json?.error || `Failed to load daily summary (${res.status}).`)
-          }
-          const text = await res.text()
-          throw new Error(text || `Failed to load daily summary (${res.status}).`)
+        const json = await res.json()
+        if (json?.error) {
+          setDailySummary(null)
+          setDailySummaryError(json.error)
+        } else {
+          setDailySummary(json as DailySummaryData)
         }
-
-        const text = await res.text()
-        setDailySummary(parseDailySummarySections(text))
       } catch (err: any) {
         if (controller.signal.aborted) {
           setDailySummaryLoading(false)
@@ -271,6 +202,7 @@ export default function ClientOverviewDashboard() {
         setDailySummaryError(err?.message || String(err))
       } finally {
         setDailySummaryLoading(false)
+        setDailySummaryForce(false)
       }
     }
 
@@ -293,6 +225,11 @@ export default function ClientOverviewDashboard() {
     return Number.isNaN(d.valueOf()) ? `As of ${dailySummary.asOf}` : `As of ${d.toLocaleString()}`
   })()
 
+  const severityColor = (s: string) =>
+    s === "high" ? "text-red-600" : s === "low" ? "text-green-600" : "text-amber-600"
+  const severityBg = (s: string) =>
+    s === "high" ? "bg-red-100 text-red-700" : s === "low" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+
   return (
     <AdvisorLayout>
       <div className="space-y-8">
@@ -305,6 +242,30 @@ export default function ClientOverviewDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={reextracting}
+              onClick={async () => {
+                setReextracting(true)
+                try {
+                  const res = await fetch("/api/agent1/seed", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ clientKey: selectedClientId }),
+                  })
+                  if (!res.ok) throw new Error("Re-extraction failed")
+                  refresh()
+                } catch (err) {
+                  console.error("Re-extract error:", err)
+                } finally {
+                  setReextracting(false)
+                }
+              }}
+            >
+              <RefreshCcw className={`w-4 h-4 ${reextracting ? "animate-spin" : ""}`} />
+              {reextracting ? "Re-extracting..." : "Re-extract from PDFs"}
+            </Button>
             <Button variant="outline" className="gap-2">
               <Calendar className="w-4 h-4" />
               Schedule Meeting
@@ -316,141 +277,148 @@ export default function ClientOverviewDashboard() {
           </div>
         </div>
 
-        {/* AI Daily Summary Banner */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-primary" />
+        {/* AI Daily Summary */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">AI Daily Summary</CardTitle>
+                  <CardDescription>{asOfLabel}</CardDescription>
+                </div>
               </div>
-              <div className="flex-1">
-                <div className="flex items-start justify-between gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={dailySummaryLoading}
+                onClick={() => {
+                  setDailySummaryForce(true)
+                  setRefreshNonce((n) => n + 1)
+                }}
+              >
+                <RefreshCcw className={`w-4 h-4 ${dailySummaryLoading ? "animate-spin" : ""}`} />
+                {dailySummaryLoading ? "Generating..." : "Refresh"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {dailySummaryLoading && (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-4 bg-muted rounded animate-pulse" style={{ width: `${85 - i * 10}%` }} />
+                ))}
+              </div>
+            )}
+
+            {!dailySummaryLoading && dailySummaryError && (
+              <p className="text-sm text-muted-foreground">
+                {dailySummaryError}
+              </p>
+            )}
+
+            {!dailySummaryLoading && !dailySummaryError && dailySummary && (
+              <div className="space-y-5">
+                {/* Market Overview */}
+                {dailySummary.marketOverview?.length > 0 && (
                   <div>
-                    <h3 className="font-semibold text-foreground">AI Daily Summary</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {asOfLabel}
-                    </p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Market Overview</p>
+                    <div className="space-y-2">
+                      {dailySummary.marketOverview.slice(0, 5).map((item, idx) => (
+                        <div key={`mo-${idx}`} className="flex items-start gap-2">
+                          <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-primary flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{item.headline}</p>
+                            {item.detail && <p className="text-xs text-muted-foreground">{item.detail}</p>}
+                            {item.source && <span className="text-xs text-muted-foreground/60">{item.source}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => setRefreshNonce((n) => n + 1)}
-                  >
-                    <RefreshCcw className="w-4 h-4" />
-                    Refresh
-                  </Button>
+                )}
+
+                {/* Portfolio Impact + Client Actions — 2 column */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Portfolio Impact */}
+                  {dailySummary.portfolioImpact?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Portfolio Impact</p>
+                      <div className="space-y-2">
+                        {dailySummary.portfolioImpact.slice(0, 4).map((item, idx) => (
+                          <div key={`pi-${idx}`} className="p-2 rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${severityBg(item.severity)}`}>
+                                {item.severity}
+                              </Badge>
+                              <span className="text-xs font-medium text-foreground">{item.area}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{item.impact}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Client Actions */}
+                  {dailySummary.clientActions?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Advisor Actions</p>
+                      <div className="space-y-2">
+                        {dailySummary.clientActions.slice(0, 4).map((item, idx) => (
+                          <div key={`ca-${idx}`} className="p-2 rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${severityBg(item.priority)}`}>
+                                {item.priority}
+                              </Badge>
+                              <span className="text-xs font-medium text-foreground">{item.action}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{item.rationale}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {dailySummaryLoading && (
-                  <p className="text-sm text-muted-foreground mt-3">Generating summary…</p>
-                )}
-
-                {!dailySummaryLoading && dailySummaryError && (
-                  <div className="mt-3 space-y-1">
-                    <p className="text-sm text-muted-foreground">
-                      Couldn&apos;t load the daily summary: {dailySummaryError}
-                    </p>
-                    {highPriorityAlerts.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {highPriorityAlerts.map((alert) => (
-                          <p key={alert.id} className="text-sm text-muted-foreground flex items-center gap-2">
-                            <AlertCircle className="w-3 h-3 text-destructive" />
-                            {alert.description}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!dailySummaryLoading && !dailySummaryError && dailySummary && (
-                  <>
-                    {dailySummary.globalEvents.length +
-                      dailySummary.portfolioImpact.length +
-                      dailySummary.riskGuidance.length +
-                      dailySummary.warnings.length +
-                      dailySummary.sources.length ===
-                    0 ? (
-                      <pre className="mt-3 text-sm text-muted-foreground whitespace-pre-wrap">
-                        {dailySummary.raw}
-                      </pre>
-                    ) : (
-                      <div className="mt-3 grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-xs font-medium text-foreground">Global events</p>
-                      <ul className="mt-2 space-y-1">
-                        {dailySummary.globalEvents?.slice(0, 5).map((t, idx) => (
-                          <li key={`ge-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
-                            <AlertCircle className="w-3 h-3 mt-1 text-primary" />
-                            <span>{t}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-foreground">Portfolio impact</p>
-                      <ul className="mt-2 space-y-1">
-                        {dailySummary.portfolioImpact?.slice(0, 5).map((t, idx) => (
-                          <li key={`pi-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
-                            <AlertCircle className="w-3 h-3 mt-1 text-primary" />
-                            <span>{t}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-foreground">Risk guidance</p>
-                      <ul className="mt-2 space-y-1">
-                        {dailySummary.riskGuidance?.slice(0, 5).map((t, idx) => (
-                          <li key={`rg-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
-                            <CheckCircle2 className="w-3 h-3 mt-1 text-green-600" />
-                            <span>{t}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    {Array.isArray(dailySummary.warnings) &&
-                      dailySummary.warnings.filter((w) => !/^none$/i.test(w.trim())).length > 0 && (
-                      <div className="col-span-3 mt-2">
-                        <p className="text-xs font-medium text-foreground">Warnings</p>
-                        <ul className="mt-2 space-y-1">
-                          {dailySummary.warnings
-                            .filter((w) => !/^none$/i.test(w.trim()))
-                            .slice(0, 3)
-                            .map((t, idx) => (
-                            <li key={`w-${idx}`} className="text-sm text-muted-foreground flex items-start gap-2">
-                              <AlertTriangle className="w-3 h-3 mt-1 text-amber-600" />
-                              <span>{t}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {Array.isArray(dailySummary.sources) && dailySummary.sources.length > 0 && (
-                      <div className="col-span-3 mt-2">
-                        <p className="text-xs font-medium text-foreground">Sources</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {dailySummary.sources.slice(0, 6).map((s, idx) => (
-                            <a
-                              key={`src-${idx}`}
-                              href={s.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-primary hover:underline"
-                            >
-                              {s.title || s.url}
-                            </a>
-                          ))}
+                {/* Risk Alerts */}
+                {dailySummary.riskAlerts?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Risk Alerts</p>
+                    <div className="space-y-1.5">
+                      {dailySummary.riskAlerts.slice(0, 3).map((item, idx) => (
+                        <div key={`ra-${idx}`} className="flex items-start gap-2">
+                          <AlertTriangle className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${severityColor(item.severity)}`} />
+                          <p className="text-sm text-muted-foreground">{item.alert}</p>
                         </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                    )}
-                  </>
+                )}
+
+                {/* Sources */}
+                {dailySummary.sources?.length > 0 && (
+                  <div className="pt-2 border-t border-border">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      {dailySummary.sources.slice(0, 6).map((s, idx) => (
+                        <a
+                          key={`src-${idx}`}
+                          href={s.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {s.title || s.url}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 

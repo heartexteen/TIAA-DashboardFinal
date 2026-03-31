@@ -6,10 +6,6 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
  * ClientContext (REVAMP)
  * ---------------------
  *
- * Old world:
- * - UI imported `lib/mock-data.ts`
- * - Everything was local/static
- *
  * New world (agentic + S3-backed):
  * - Agent 1 writes per-client JSON artifacts to S3:
  *     s3://<bucket>/agent1(extractor)-output(json)/<clientKey>/client.json
@@ -21,8 +17,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
  *     GET  /api/clients/:clientKey/context
  *
  * Dev convenience:
- * - If S3 output is empty, GET /api/clients may auto-run Agent 1 "seed mode"
- *   to populate S3 from local mock data (temporary until PDF extraction exists).
+ * - If S3 output is empty, GET /api/clients may auto-run Agent 1 extraction
+ *   to populate S3 output from the source PDFs that already live in S3.
  */
 
 export type ClientRecord = {
@@ -134,7 +130,12 @@ function emptyBundle(): ClientContextBundle {
     },
     rtqData: {
       client: { name: "Loading…", document: "" },
-      financialProfile: {},
+      financialProfile: {
+        assetsUnderConsideration: 0,
+        employerStock: { company: "", approxValue: 0, note: "" },
+        pensionIncome: { source: "", annualAmount: 0, note: "" },
+        socialSecurity: { estimatedAnnual: 0, claimAge: 0, note: "" },
+      },
       investmentPreferences: {
         timeHorizon: { selected: "Loading…", points: 0 },
         primaryInvestmentObjective: { selected: "Loading…", points: 0 },
@@ -146,7 +147,7 @@ function emptyBundle(): ClientContextBundle {
         investmentKnowledge: { selected: "Loading…", points: 0 },
       },
       riskAssessment: { totalScore: 0, riskProfile: "Loading…", scoreRange: "", description: "" },
-      suggestedAssetAllocation: { equity: 0, fixedIncome: 0, alternatives: 0, cash: 0 },
+      suggestedAssetAllocation: { equity: 0, fixedIncome: 0, alternatives: 0, realAssets: 0, cash: 0 },
       investmentConstraints: { esgPreference: false, notes: [] },
     },
     estateData: {

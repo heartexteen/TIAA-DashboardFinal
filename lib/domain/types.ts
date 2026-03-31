@@ -5,7 +5,7 @@
  * - No AWS SDK imports
  * - No Node-only APIs
  *
- * The goal is to decouple UI code from `lib/mock-data.ts` so we can delete/move the seed file later.
+ * The goal is to keep UI types decoupled from Agent 1 extraction internals and any source-data files.
  */
 
 export type DocumentType = "IPS" | "RTQ" | "Estate" | "Tax" | "Other" | string
