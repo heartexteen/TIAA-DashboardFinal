@@ -1,8 +1,8 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   Search,
-  Plus,
   Filter,
   MoreHorizontal,
   FileText,
@@ -29,10 +29,36 @@ import { useClient } from "@/lib/client-context"
 import Link from "next/link"
 
 export default function ClientsPage() {
-  const { clients } = useClient()
+  const { clients, setSelectedClientId } = useClient()
   const totalAUM = clients.reduce((sum, c) => sum + c.totalAssets, 0)
   const activeClients = clients.filter((c) => c.status === "active").length
   const alertCount = clients.reduce((sum, c) => sum + c.alerts.filter((a) => a.priority === "high").length, 0)
+
+  // Fetch real document counts from S3
+  const [docCounts, setDocCounts] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    async function loadCounts() {
+      const counts: Record<string, number> = {}
+      await Promise.all(
+        clients.map(async (client) => {
+          try {
+            const res = await fetch(`/api/documents/list?clientKey=${encodeURIComponent(client.id)}`)
+            const json = await res.json()
+            counts[client.id] = Array.isArray(json.documents) ? json.documents.length : 0
+          } catch {
+            counts[client.id] = 0
+          }
+        })
+      )
+      setDocCounts(counts)
+    }
+    if (clients.length > 0) loadCounts()
+  }, [clients])
+
+  const handleSelectClient = (clientId: string) => {
+    setSelectedClientId(clientId)
+  }
 
   return (
     <AdvisorLayout>
@@ -45,10 +71,6 @@ export default function ClientsPage() {
               Manage your client portfolio and access client documents
             </p>
           </div>
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Add Client
-          </Button>
         </div>
 
         {/* Summary Metrics */}
@@ -139,7 +161,7 @@ export default function ClientsPage() {
                 {clients.map((client) => (
                   <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell>
-                      <Link href="/" className="flex items-center gap-3">
+                      <Link href="/" onClick={() => handleSelectClient(client.id)} className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
                           <AvatarFallback className="bg-primary/10 text-primary">
                             {client.name.split(" ").map((n) => n[0]).join("")}
@@ -171,7 +193,7 @@ export default function ClientsPage() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <FileText className="w-4 h-4 text-muted-foreground" />
-                        <span>{client.documents.length}</span>
+                        <span>{docCounts[client.id] ?? "..."}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -200,9 +222,15 @@ export default function ClientsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild><a href="/">View Profile</a></DropdownMenuItem>
-                          <DropdownMenuItem asChild><a href="/documents">View Documents</a></DropdownMenuItem>
-                          <DropdownMenuItem asChild><a href="https://mail.google.com/mail/?view=cm&fs=1&su=Meeting+Request" target="_blank" rel="noreferrer">Schedule Meeting</a></DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href="/" onClick={() => handleSelectClient(client.id)}>View Profile</Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href="/documents" onClick={() => handleSelectClient(client.id)}>View Documents</Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a href="https://mail.google.com/mail/?view=cm&fs=1&su=Meeting+Request" target="_blank" rel="noreferrer">Schedule Meeting</a>
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -213,10 +241,10 @@ export default function ClientsPage() {
           </CardContent>
         </Card>
 
-        {/* Client Cards (Alternative View) */}
+        {/* Client Cards */}
         <div className="grid grid-cols-3 gap-6">
           {clients.map((client) => (
-            <Link key={client.id} href="/">
+            <Link key={client.id} href="/" onClick={() => handleSelectClient(client.id)}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
@@ -244,15 +272,15 @@ export default function ClientsPage() {
                       {client.status}
                     </Badge>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Total AUM</span>
                       <span className="font-semibold">${(client.totalAssets / 1000000).toFixed(2)}M</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Documents</span>
-                      <span className="font-medium">{client.documents.length}</span>
+                      <span className="text-sm text-muted-foreground">Documents in S3</span>
+                      <span className="font-medium">{docCounts[client.id] ?? "..."}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Next Meeting</span>
