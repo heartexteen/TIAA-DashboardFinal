@@ -266,13 +266,17 @@ export default function ClientOverviewDashboard() {
               <RefreshCcw className={`w-4 h-4 ${reextracting ? "animate-spin" : ""}`} />
               {reextracting ? "Re-extracting..." : "Re-extract from PDFs"}
             </Button>
-            <Button variant="outline" className="gap-2">
-              <Calendar className="w-4 h-4" />
-              Schedule Meeting
+            <Button variant="outline" className="gap-2" asChild>
+              <a href="https://mail.google.com/mail/?view=cm&fs=1&su=Meeting+Request" target="_blank" rel="noreferrer">
+                <Calendar className="w-4 h-4" />
+                Schedule Meeting
+              </a>
             </Button>
-            <Button className="gap-2 bg-primary hover:bg-primary/90">
-              <FileText className="w-4 h-4" />
-              Upload Document
+            <Button className="gap-2 bg-primary hover:bg-primary/90" asChild>
+              <Link href="/documents">
+                <FileText className="w-4 h-4" />
+                Upload Document
+              </Link>
             </Button>
           </div>
         </div>

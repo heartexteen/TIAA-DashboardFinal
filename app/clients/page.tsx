@@ -200,10 +200,9 @@ export default function ClientsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View Profile</DropdownMenuItem>
-                          <DropdownMenuItem>View Documents</DropdownMenuItem>
-                          <DropdownMenuItem>Schedule Meeting</DropdownMenuItem>
-                          <DropdownMenuItem>Send Message</DropdownMenuItem>
+                          <DropdownMenuItem asChild><a href="/">View Profile</a></DropdownMenuItem>
+                          <DropdownMenuItem asChild><a href="/documents">View Documents</a></DropdownMenuItem>
+                          <DropdownMenuItem asChild><a href="https://mail.google.com/mail/?view=cm&fs=1&su=Meeting+Request" target="_blank" rel="noreferrer">Schedule Meeting</a></DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
