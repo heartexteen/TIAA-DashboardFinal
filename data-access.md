@@ -10,7 +10,7 @@ The rules below define the data-handling posture that would apply **if** real sp
 
 | Data class | Example | Location | Committed to git? |
 |---|---|---|---|
-| Synthetic test PDFs (IPS, RTQ, Estate) | `Carina_IPS.pdf`, `JohnSmith_RTQ.pdf`, `Maria_Estate_Planning.pdf` — author-created, not real clients | S3: `s3://tiaa-test-1/agent1(extractor)-input(PDF)/<client>/` and local dev folder `pdfData/` | **No** — blocked by [.gitignore](.gitignore) as a default policy, not because the current PDFs are confidential |
+| Synthetic test PDFs (IPS, RTQ, Estate) | `Carina_IPS.pdf`, `JohnSmith_RTQ.pdf`, `Maria_Estate_Planning.pdf` — author-created, not real clients | S3: `s3://tiaa-test-1/agent1(extractor)-input(PDF)/<client>/` and local folder [pdfData/](pdfData/) | **Yes** — included so reviewers can run the pipeline end-to-end. Safe because the personas are fictional. |
 | Extracted / structured output (JSON) | Agent 1 pipeline outputs (IPS / RTQ / Estate JSON) for synthetic personas | S3: `s3://tiaa-test-1/agent1(extractor)-output/<client>/` | **No** — written at runtime |
 | Synthetic / seed reference data | [lib/agents/agent1/reference-data/](lib/agents/agent1/reference-data/), [lib/non-pdf-client-data/](lib/non-pdf-client-data/) | Repo | **Yes** — author-generated, no real client data |
 | Redacted sample outputs | [results/](results/) | Repo | **Yes** — placeholder values only |

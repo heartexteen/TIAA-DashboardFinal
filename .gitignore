@@ -2,10 +2,11 @@ node_modules/
 .next/
 .DS_Store
 
-# Raw sponsor / client data — never commit. See data-access.md.
-pdfData/
+# Real sponsor / client data — never commit. See data-access.md.
+# Note: pdfData/ and *.pdf are intentionally NOT ignored — the PDFs currently
+# in this repo are synthetic test personas (Carina, John Smith, Maria),
+# not real client data. If real sponsor data is ever shared, add rules here.
 data/
-*.pdf
 *.csv
 *.xlsx
 
