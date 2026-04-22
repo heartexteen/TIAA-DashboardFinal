@@ -41,8 +41,10 @@ import Link from "next/link"
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
 
 export default function IPSDashboard() {
-  const { ipsData, currentClient } = useClient()
+  const { ipsData, currentClient, selectedClientId } = useClient()
   const { clientProfile, investmentObjectives, riskTolerance, timeHorizon, liquidityNeeds, returnGoal, targetAssetAllocation, advisorNotes, benchmarks } = ipsData
+  const pdfUrl = `/api/documents/pdf?clientKey=${encodeURIComponent(selectedClientId)}&docType=ips`
+  const pdfDownloadUrl = `${pdfUrl}&download=1`
 
   // Prepare pie chart data
   const pieChartData = (targetAssetAllocation.allocations as any[]).map((a: any) => ({
@@ -79,7 +81,7 @@ export default function IPSDashboard() {
             <Button 
               variant="outline" 
               className="gap-2"
-              onClick={() => window.open("/documents/Carina_IPS.pdf", "_blank")}
+              onClick={() => window.open(pdfUrl, "_blank")}
             >
               <ExternalLink className="w-4 h-4" />
               View Original
@@ -89,7 +91,7 @@ export default function IPSDashboard() {
               className="gap-2"
               asChild
             >
-              <a href="/documents/Carina_IPS.pdf" download>
+              <a href={pdfDownloadUrl} download>
                 <Download className="w-4 h-4" />
                 Export PDF
               </a>

@@ -1,0 +1,40 @@
+{
+  "_note": "Placeholder sample — no real client data. See ../data-access.md.",
+  "client": {
+    "name": "Sample Client",
+    "document": "Sample_RTQ.pdf"
+  },
+  "financialProfile": {
+    "assetsUnderConsideration": 1500000,
+    "employerStock": { "company": "N/A", "approxValue": 0, "note": "" },
+    "pensionIncome": { "source": "Sample Employer Pension", "annualAmount": 40000, "note": "" },
+    "socialSecurity": { "estimatedAnnual": 36000, "claimAge": 67, "note": "" }
+  },
+  "investmentPreferences": {
+    "timeHorizon": { "selected": "10-15 years", "points": 3, "note": "" },
+    "primaryInvestmentObjective": { "selected": "Balanced growth and income", "points": 3 },
+    "annualSpendingPolicy": { "selected": "3-4% of portfolio", "points": 3, "note": "" },
+    "returnExpectation": { "selected": "5-7%", "points": 3 },
+    "investmentApproach": { "selected": "Diversified across asset classes", "points": 3 },
+    "reactionToLoss": { "scenario": "20% decline", "selected": "Hold position", "points": 3 },
+    "mostFearedEvent": { "selected": "Outliving savings", "points": 2 },
+    "investmentKnowledge": { "selected": "Moderate", "points": 2 }
+  },
+  "riskAssessment": {
+    "totalScore": 22,
+    "riskProfile": "Moderate",
+    "scoreRange": "19-25",
+    "description": "Balanced tolerance for risk, prioritizing long-term growth with downside awareness."
+  },
+  "suggestedAssetAllocation": {
+    "equity": 60,
+    "fixedIncome": 30,
+    "alternatives": 5,
+    "realAssets": 0,
+    "cash": 5
+  },
+  "investmentConstraints": {
+    "esgPreference": false,
+    "notes": []
+  }
+}

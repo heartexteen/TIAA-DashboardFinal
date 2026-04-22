@@ -1,0 +1,74 @@
+{
+  "_note": "Placeholder sample — no real client data. See ../data-access.md.",
+  "clientProfile": {
+    "clientName": "Sample Client",
+    "accounts": [
+      {
+        "accountName": "Sample Client – Tax-Deferred 403(b)",
+        "accountType": "Tax-Deferred",
+        "approximateValue": 1000000,
+        "institution": "TIAA",
+        "beneficiaryStatus": "complete"
+      },
+      {
+        "accountName": "Sample Joint Brokerage",
+        "accountType": "Taxable",
+        "approximateValue": 500000,
+        "institution": "Vanguard",
+        "beneficiaryStatus": "complete"
+      }
+    ],
+    "totalPortfolioValue": 1500000
+  },
+  "currentHoldings": {
+    "asOf": "2026-01-01",
+    "currency": "USD",
+    "accounts": [
+      {
+        "accountName": "Sample Client – Tax-Deferred 403(b)",
+        "accountType": "Tax-Deferred",
+        "institution": "TIAA",
+        "holdings": [
+          {
+            "name": "Total US Stock Market Index Fund",
+            "ticker": "XXXX",
+            "assetClass": "Equity",
+            "marketValue": 600000,
+            "expenseRatio": 0.03
+          },
+          {
+            "name": "Total Bond Market Index Fund",
+            "ticker": "YYYY",
+            "assetClass": "Fixed Income",
+            "marketValue": 400000,
+            "durationYears": 6.5
+          }
+        ]
+      }
+    ]
+  },
+  "investmentObjectives": [
+    "Capital Preservation",
+    "Income Generation"
+  ],
+  "riskTolerance": "Moderate",
+  "timeHorizon": "10-15 Years",
+  "liquidityNeeds": "Placeholder narrative describing expected distributions and emergency reserve.",
+  "returnGoal": "Placeholder narrative describing target annualized return range.",
+  "targetAssetAllocation": {
+    "portfolioProfile": "Moderate",
+    "allocations": [
+      { "assetClass": "Equity", "targetAllocation": 60, "allowableMin": 50, "allowableMax": 70 },
+      { "assetClass": "Fixed Income", "targetAllocation": 30, "allowableMin": 20, "allowableMax": 40 },
+      { "assetClass": "Alternatives", "targetAllocation": 5, "allowableMin": 0, "allowableMax": 10 },
+      { "assetClass": "Cash & Equivalents", "targetAllocation": 5, "allowableMin": 0, "allowableMax": 10 }
+    ]
+  },
+  "advisorNotes": [
+    { "title": "Rebalancing policy", "content": "Placeholder — quarterly review with 5% drift trigger." }
+  ],
+  "benchmarks": [
+    { "assetClass": "Equity", "benchmark": "S&P 500" },
+    { "assetClass": "Fixed Income", "benchmark": "Bloomberg US Aggregate" }
+  ]
+}

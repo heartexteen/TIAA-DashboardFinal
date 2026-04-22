@@ -1,3 +1,16 @@
 node_modules/
 .next/
 .DS_Store
+
+# Raw sponsor / client data — never commit. See data-access.md.
+pdfData/
+data/
+*.pdf
+*.csv
+*.xlsx
+
+# Local env + build artifacts
+.env
+.env.local
+.env*.local
+tsconfig.tsbuildinfo

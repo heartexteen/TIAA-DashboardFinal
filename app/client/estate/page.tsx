@@ -38,8 +38,10 @@ import Link from "next/link"
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
 
 export default function EstateDashboard() {
-  const { estateData, ipsData, currentClient } = useClient()
+  const { estateData, ipsData, currentClient, selectedClientId } = useClient()
   const { personalInformation, powerOfAttorney, beneficiaries, taxExemption, assetsAndRecipients, trusteeDuties, documentsNeeded, actionItems } = estateData as typeof estateData & { trusteeDuties?: string[], documentsNeeded?: Array<{ name: string, status: string }> }
+  const pdfUrl = `/api/documents/pdf?clientKey=${encodeURIComponent(selectedClientId)}&docType=estate`
+  const pdfDownloadUrl = `${pdfUrl}&download=1`
   const safeAssetsAndRecipients = Array.isArray(assetsAndRecipients)
     ? assetsAndRecipients.map((asset: any) => ({
         asset: String(asset?.asset || ""),
@@ -103,7 +105,7 @@ export default function EstateDashboard() {
             <Button 
               variant="outline" 
               className="gap-2"
-              onClick={() => window.open("/documents/Carina_Estate.pdf", "_blank")}
+              onClick={() => window.open(pdfUrl, "_blank")}
             >
               <ExternalLink className="w-4 h-4" />
               View Original
@@ -113,7 +115,7 @@ export default function EstateDashboard() {
               className="gap-2"
               asChild
             >
-              <a href="/documents/Carina_Estate.pdf" download>
+              <a href={pdfDownloadUrl} download>
                 <Download className="w-4 h-4" />
                 Export PDF
               </a>

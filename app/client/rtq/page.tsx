@@ -48,8 +48,10 @@ import Link from "next/link"
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#6b7280"]
 
 export default function RTQDashboard() {
-  const { rtqData, ipsData, currentClient } = useClient()
+  const { rtqData, ipsData, currentClient, selectedClientId } = useClient()
   const { client, financialProfile, investmentPreferences, riskAssessment, suggestedAssetAllocation, investmentConstraints } = rtqData
+  const pdfUrl = `/api/documents/pdf?clientKey=${encodeURIComponent(selectedClientId)}&docType=rtq`
+  const pdfDownloadUrl = `${pdfUrl}&download=1`
   const employerStock = (financialProfile as any)?.employerStock as
     | { company: string; approxValue: number; note?: string }
     | undefined
@@ -112,7 +114,7 @@ export default function RTQDashboard() {
             <Button 
               variant="outline" 
               className="gap-2"
-              onClick={() => window.open("/documents/Carina_RTQ.pdf", "_blank")}
+              onClick={() => window.open(pdfUrl, "_blank")}
             >
               <ExternalLink className="w-4 h-4" />
               View Original
@@ -122,7 +124,7 @@ export default function RTQDashboard() {
               className="gap-2"
               asChild
             >
-              <a href="/documents/Carina_RTQ.pdf" download>
+              <a href={pdfDownloadUrl} download>
                 <Download className="w-4 h-4" />
                 Export PDF
               </a>

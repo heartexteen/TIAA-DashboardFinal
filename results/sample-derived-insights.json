@@ -1,0 +1,37 @@
+{
+  "_note": "Placeholder sample — no real client data. See ../data-access.md.",
+  "alerts": [
+    {
+      "type": "allocation-drift",
+      "title": "Equity allocation above IPS target",
+      "description": "Current equity allocation is 64% vs. IPS target of 60% (allowable 50-70%). Within band but trending high.",
+      "priority": "medium"
+    },
+    {
+      "type": "beneficiary",
+      "title": "Beneficiary review due",
+      "description": "Last beneficiary confirmation on IRA is over 3 years old.",
+      "priority": "low"
+    }
+  ],
+  "aiSuggestions": [
+    {
+      "priority": "high",
+      "action": "Rebalance to IPS targets",
+      "rationale": "Equity drift approaching upper band; rebalancing now locks in gains and restores risk profile.",
+      "category": "Portfolio"
+    },
+    {
+      "priority": "medium",
+      "action": "Confirm beneficiary designations",
+      "rationale": "Estate review flagged IRA beneficiary last confirmed > 3 years ago.",
+      "category": "Estate"
+    }
+  ],
+  "meetingTopics": [
+    "Review IPS target vs. current allocation",
+    "Confirm beneficiary designations on all qualified accounts",
+    "Discuss Social Security claiming strategy",
+    "Review spending policy for upcoming retirement transition"
+  ]
+}

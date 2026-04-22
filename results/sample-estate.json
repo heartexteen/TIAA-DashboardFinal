@@ -1,0 +1,74 @@
+{
+  "_note": "Placeholder sample — no real client data. See ../data-access.md.",
+  "personalInformation": {
+    "name": "Sample Client",
+    "age": 62,
+    "maritalStatus": "Married",
+    "spouse": { "name": "Sample Spouse", "age": 60 },
+    "children": [
+      { "name": "Child A", "age": 30, "relationship": "Daughter" }
+    ],
+    "grandchildren": [],
+    "stateOfResidence": "PA"
+  },
+  "powerOfAttorney": {
+    "primary": "Sample Spouse",
+    "alternate": "Child A",
+    "document": "Executed 2024"
+  },
+  "healthcareDirective": {
+    "healthcareProxy": "Sample Spouse",
+    "alternate": "Child A",
+    "document": "Executed 2024"
+  },
+  "beneficiaries": {
+    "qualified": "Primary: Spouse (100%). Contingent: Children equally.",
+    "primary": [
+      { "name": "Sample Spouse", "percentage": 100, "accounts": ["403(b)", "IRA"] }
+    ],
+    "secondary": [
+      { "name": "Child A", "percentage": 100, "accounts": ["403(b)", "IRA"] }
+    ]
+  },
+  "taxExemption": "Within federal exemption threshold.",
+  "assetsAndRecipients": [
+    { "asset": "Primary residence", "value": 500000, "recipient": "Sample Spouse", "status": "Joint with rights of survivorship" }
+  ],
+  "trusts": {
+    "revocableLivingTrust": {
+      "status": "Established",
+      "established": "2024",
+      "trustees": ["Sample Client", "Sample Spouse"],
+      "successorTrustee": "Child A",
+      "beneficiaries": "Spouse then children equally",
+      "purpose": "Probate avoidance",
+      "assets": "Brokerage accounts, primary residence"
+    },
+    "creditShelterTrust": { "status": "Not applicable" }
+  },
+  "lifeInsurance": [
+    {
+      "type": "Term",
+      "carrier": "Sample Carrier",
+      "faceValue": 500000,
+      "beneficiary": "Sample Spouse",
+      "purpose": "Income replacement",
+      "note": ""
+    }
+  ],
+  "charitableGiving": {
+    "intent": "Moderate",
+    "donorAdvisedFund": { "status": "Not established", "note": "" },
+    "plannedGifts": []
+  },
+  "trusteeDuties": [
+    "Administer trust per terms",
+    "File fiduciary tax returns"
+  ],
+  "documentsNeeded": [
+    { "document": "Updated will", "priority": "medium", "status": "pending" }
+  ],
+  "actionItems": [
+    { "id": 1, "action": "Confirm beneficiary designations on all accounts", "responsible": "Advisor", "status": "open" }
+  ]
+}

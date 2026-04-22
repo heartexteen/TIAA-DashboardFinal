@@ -3,9 +3,9 @@ import type { MockClientNonPdfData } from "../types"
 export const mariaNonPdfData: MockClientNonPdfData = {
   clientKey: "maria",
   client: {
-    id: "maria-garcia",
-    name: "Maria Garcia",
-    email: "maria.garcia@email.com",
+    id: "maria-lopez",
+    name: "Maria Lopez",
+    email: "maria.lopez@email.com",
     phone: "(207) 555-0789",
     advisor: "Penobscot Financial Advisors",
     status: "pending",
